@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+ENV/
+
+# 环境与密钥（永远不要提交真实 key）
+.env
+.env.*
+*.local
+*key*
+*secret*
+!*.example
+
+# 测试与日志
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

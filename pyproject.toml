@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-weather-demo"
+version = "0.1.0"
+description = "MCP (Model Context Protocol) demo: a server exposing current-location & weather tools, plus an agent that auto-calls them via LLM function calling."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "<你的名字 / GitHub 用户名>" }]
+keywords = ["mcp", "model-context-protocol", "weather", "llm", "agent"]
+dependencies = [
+    "mcp>=1.2.0",
+    "httpx>=0.27.0",
+    "openai>=1.40.0",
+]
+
+[project.scripts]
+mcp-weather-server = "server:main"
+mcp-weather-agent = "agent:main"
+
+[tool.setuptools]
+py-modules = ["server", "agent", "test_client"]
