@@ -22,7 +22,8 @@ mcp_weather_demo/
 ├── agent.py           # MCP Agent（LLM 自动调用工具，支持 --demo 演示）
 ├── deploy.py          # streamable-http 远程部署入口（Web 常驻服务）
 ├── test_client.py     # 自带 stdio 测试客户端，一键验证链路
-├── requirements.txt   # 依赖：mcp、httpx、openai
+├── setup.sh           # 一键恢复环境：装依赖+校验版本+冒烟测试
+├── requirements.txt   # 依赖（精确锁定版本：mcp==2.1.1 等）
 ├── pyproject.toml     # 项目元信息（可选，支持 pip install -e .）
 ├── LICENSE            # MIT 许可
 ├── .gitignore
@@ -30,11 +31,17 @@ mcp_weather_demo/
 ```
 
 ## 2. 安装依赖
-
+**推荐一键恢复**（沙箱被重置 / 全新 clone 后执行，装依赖+校验版本+冒烟测试一步到位）：
+```bash
+bash setup.sh
+```
+或手动安装：
 ```bash
 cd mcp_weather_demo
-pip install -r requirements.txt
+pip install -r requirements.txt   # 版本已精确锁定，任何环境装出来一致
 ```
+> 可复现性说明：本沙箱的 Python 站点包可能被重置回基线版本，因此**一切以 GitHub 为准**——
+> 代码全部推送、依赖精确锁定、CI 在全新环境自动验证。恢复开发环境只需 `git clone` + `bash setup.sh`。
 
 ## 3. 快速验证
 
