@@ -20,6 +20,7 @@
 mcp_weather_demo/
 ├── server.py          # MCP Server（MCPServer，暴露两个工具）
 ├── agent.py           # MCP Agent（LLM 自动调用工具，支持 --demo 演示）
+├── deploy.py          # streamable-http 远程部署入口（Web 常驻服务）
 ├── test_client.py     # 自带 stdio 测试客户端，一键验证链路
 ├── requirements.txt   # 依赖：mcp、httpx、openai
 ├── pyproject.toml     # 项目元信息（可选，支持 pip install -e .）
@@ -121,11 +122,35 @@ python agent.py "今天天气怎么样？"
 - `to_openai_tool()`：把 MCP 工具定义转换成 LLM 认识的 function-calling schema
 - `run_agent()`：核心循环 —— 把工具喂给 LLM → LLM 返回 tool_calls → 在 MCP 会话执行 → 结果回填 → 直到 LLM 给出最终回答
 
-## 7. 扩展方向
+## 7. 远程部署（streamable-http）
+本地 stdio 是"客户端拉起子进程、单机单客户端"；远程部署则是把同一个 MCP Server 跑成**常驻 Web 服务**，网络上的任何客户端都能连。适合：多客户端/团队共享、数据源在服务器侧、对外提供工具能力等场景。
+
+### 启动服务
+```bash
+python deploy.py                                   # 默认 0.0.0.0:8000，端点 /mcp
+python deploy.py --host 0.0.0.0 --port 9000 --path /weather  # 自定义
+```
+启动后端点即 `http://<服务器IP>:8000/mcp`。v2 里传输参数直接传给 `mcp.run(transport="streamable-http", ...)`，业务代码零改动。
+
+### 用 Inspector 远程连接
+```bash
+npx @modelcontextprotocol/inspector --transport http http://<服务器IP>:8000/mcp
+```
+浏览器打开 Inspector 后点 **Connect**，即可远程看到并调用两个工具。
+
+### 接进 Cursor / Claude Desktop（URL 方式）
+- **Cursor**：Settings → MCP → Add new MCP server → 选 `url`，填 `http://<服务器IP>:8000/mcp`
+- **Claude Desktop**：在 MCP 配置里用远程 URL 方式（streamable-http 端点），地址同上
+
+### 生产注意
+- 本入口用于**演示/内网试用**；暴露公网前务必加**鉴权**（OAuth/JWT）、**限流**并前置 HTTPS（Nginx/Caddy 反代）。
+- v2 在 host 为 `127.0.0.1` 时会自动开启 DNS rebinding 防护；对外部署需按需配置 `transport_security`。
+
+## 8. 扩展方向
 
 - 加 **Resource**：暴露静态数据（如"常用城市列表"）供客户端读取
 - 加 **Prompt**：定义提示词模板，让客户端按模板引导 AI
-- 换 **HTTP/SSE 传输**：`uvicorn server:app` 部署成远程服务
+- 换 **SSE 传输**：`mcp.run(transport='sse', ...)`（若需兼容老式 SSE 客户端）
 - 换成你自己的真实业务接口（数据库、内网 API），原理完全一致
 
 ## 注意事项

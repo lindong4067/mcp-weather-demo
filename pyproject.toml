@@ -20,6 +20,7 @@ dependencies = [
 [project.scripts]
 mcp-weather-server = "server:main"
 mcp-weather-agent = "agent:main"
+mcp-weather-deploy = "deploy:main"
 
 [tool.setuptools]
-py-modules = ["server", "agent", "test_client"]
+py-modules = ["server", "agent", "test_client", "deploy"]
