@@ -22,7 +22,8 @@ mcp_weather_demo/
 ├── agent.py           # MCP Agent（LLM 自动调用工具，支持 --demo 演示）
 ├── deploy.py          # streamable-http 远程部署入口（Web 常驻服务）
 ├── test_client.py     # 自带 stdio 测试客户端，一键验证链路
-├── setup.sh           # 一键恢复环境：装依赖+校验版本+冒烟测试
+├── setup.sh           # 一键恢复环境（Linux/macOS/WSL）
+├── setup.ps1          # 一键恢复环境（Windows/PowerShell）
 ├── requirements.txt   # 依赖（精确锁定版本：mcp==2.1.1 等）
 ├── pyproject.toml     # 项目元信息（可选，支持 pip install -e .）
 ├── LICENSE            # MIT 许可
@@ -32,23 +33,31 @@ mcp_weather_demo/
 
 ## 2. 安装依赖
 **推荐一键恢复**（沙箱被重置 / 全新 clone 后执行，装依赖+校验版本+冒烟测试一步到位）：
-```bash
-bash setup.sh
-```
-或手动安装：
+- **Windows / PowerShell**（依赖会装进项目内 `.venv`，不污染系统）：
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File .\setup.ps1
+  ```
+- **Linux / macOS / WSL**（同样自动建 `.venv`，兼容 PEP 668 禁止系统级 pip 的发行版）：
+  ```bash
+  bash setup.sh
+  ```
+或手动安装（Windows 用 venv 的 python 避免污染系统）：
 ```bash
 cd mcp_weather_demo
-pip install -r requirements.txt   # 版本已精确锁定，任何环境装出来一致
+# Windows:  .venv\Scripts\python.exe -m pip install -r requirements.txt
+# Linux:    python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
-> 可复现性说明：本沙箱的 Python 站点包可能被重置回基线版本，因此**一切以 GitHub 为准**——
-> 代码全部推送、依赖精确锁定、CI 在全新环境自动验证。恢复开发环境只需 `git clone` + `bash setup.sh`。
+> 可复现性说明：沙箱的 Python 站点包可能被重置回基线版本，因此**一切以 GitHub 为准**——
+> 代码全部推送、依赖精确锁定、CI 在全新环境自动验证。恢复开发环境只需 `git clone` + 上面的一键脚本。
 
 ## 3. 快速验证
-
+依赖装在哪就用哪个 python 跑（`.venv` 里的 python 已装好全部依赖；系统 python 可能没有）：
 ```bash
-python test_client.py
+# Windows:
+.venv\Scripts\python.exe test_client.py
+# Linux / macOS / WSL:
+.venv/bin/python test_client.py
 ```
-
 它会以子进程方式拉起 `server.py`，通过 stdio 完成初始化握手、列出工具并依次调用，输出类似：
 
 ```
@@ -69,10 +78,19 @@ python test_client.py
 ## 4. 用真实客户端接入（三种方式）
 
 ### 方式 A：MCP Inspector（图形化调试，最快）
+> 前置：Inspector 2.x 要求 **Node.js ≥ 22**。Windows 可用 `winget install OpenJS.NodeJS.LTS` 安装；装完 `node -v` 确认 ≥ v22。
+
+在项目根目录启动（**务必用 `.venv` 里的 python 拉起 server**，系统 python 没有依赖）：
 ```bash
-npx @modelcontextprotocol/inspector python server.py
+# Windows:
+npx @modelcontextprotocol/inspector .venv\Scripts\python.exe server.py
+# Linux / macOS / WSL:
+npx @modelcontextprotocol/inspector .venv/bin/python server.py
 ```
 浏览器打开 `http://localhost:6274`，点 **Connect** 后即可在 Tools 面板里看到并调用两个工具。
+
+**关闭**：回到启动 Inspector 的终端，按 `Ctrl+C` 结束进程（直接关闭该终端窗口同样有效）。
+> 提示：Inspector 只是调试工具，日常使用 VSCode/Claude Desktop 等客户端即可，无需常驻。
 
 ### 方式 B：Claude Desktop
 编辑配置文件（macOS：`~/Library/Application Support/Claude/claude_desktop_config.json`；Windows：`%APPDATA%\Claude\claude_desktop_config.json`）：
@@ -81,32 +99,55 @@ npx @modelcontextprotocol/inspector python server.py
 {
   "mcpServers": {
     "weather-location-demo": {
-      "command": "python",
+      "command": "/绝对路径/mcp_weather_demo/.venv/bin/python",
       "args": ["/绝对路径/mcp_weather_demo/server.py"]
     }
   }
 }
 ```
-重启 Claude Desktop，对话中直接问"帮我查一下上海的天气"，它就会调用你的 MCP 工具。
+> `command` 要指向**项目 `.venv` 里的 python**（系统 python 没装依赖）：Windows 下是 `.venv\Scripts\python.exe`，Linux/macOS/WSL 下是 `.venv/bin/python`。重启 Claude Desktop，对话中直接问"帮我查一下上海的天气"，它就会调用你的 MCP 工具。
 
 ### 方式 C：Cursor
-Settings → MCP → **Add new MCP server** → 选 `stdio`，command 填 `python /绝对路径/mcp_weather_demo/server.py`，启用后即可在对话里触发。
+Settings → MCP → **Add new MCP server** → 选 `stdio`，command 填 `.venv` 里的 python + `server.py` 绝对路径：
+- Windows：`C:\路径\mcp-weather-demo\.venv\Scripts\python.exe C:\路径\mcp-weather-demo\server.py`
+- Linux/macOS/WSL：`/路径/mcp-weather-demo/.venv/bin/python /路径/mcp-weather-demo/server.py`
+启用后即可在对话里触发。
 
 ### 方式 D：VSCode
-在项目根目录建 `.vscode/mcp.json`（该文件已在 `.gitignore` 中，属本地环境配置；用 Remote-WSL 打开项目时自动生效，server 在 WSL 内启动）：
+在项目根目录建 `.vscode/mcp.json`（该文件已在 `.gitignore` 中，属本地环境配置，不随仓库提交）。`command` 用**项目 `.venv` 里的 python** 拉起 server：
+
+**Windows**（普通方式打开文件夹即可）：
 ```json
 {
   "servers": {
     "weather-location-demo": {
       "type": "stdio",
-      "command": "/绝对路径/mcp-weather-demo/.venv/bin/python",
-      "args": ["/绝对路径/mcp-weather-demo/server.py"],
-      "cwd": "/绝对路径/mcp-weather-demo"
+      "command": "C:\\路径\\mcp-weather-demo\\.venv\\Scripts\\python.exe",
+      "args": ["C:\\路径\\mcp-weather-demo\\server.py"],
+      "cwd": "C:\\路径\\mcp-weather-demo"
     }
   }
 }
 ```
-> 注意：`setup.sh` 会把依赖装进项目内的 `.venv`（Ubuntu 等 PEP 668 系统禁止系统级 pip），所以 `command` 必须指向 `.venv/bin/python`，而不是系统 `python`。配置后重启 VSCode，命令面板执行 **MCP: List Servers** 确认连接，再在对话里问"今天天气怎么样？"即可触发。
+**WSL / Linux**（用 Remote-WSL 打开，server 在 WSL 内启动）：
+```json
+{
+  "servers": {
+    "weather-location-demo": {
+      "type": "stdio",
+      "command": "/路径/mcp-weather-demo/.venv/bin/python",
+      "args": ["/路径/mcp-weather-demo/server.py"],
+      "cwd": "/路径/mcp-weather-demo"
+    }
+  }
+}
+```
+**使用前必须做这三步（少一步就可能"工具不生效、模型自己去查 API"）：**
+1. **重载窗口**：命令面板（Ctrl+Shift+P）→ `Developer: Reload Window`。`.vscode/mcp.json` 是直接写进磁盘的，VSCode 只在启动/配置变更时读取，**不重载就不会发现 server**——这是最常见的坑。
+2. **确认已连接且启用**：命令面板 → **MCP: List Servers**，确认 `weather-location-demo` 为 connected 且 enabled（若显示 disabled，选中它 → Enable）。
+3. **确认工具已暴露给 Agent**：Chat 输入框下方点 **Configure Tools**，应能看到 `get_current_location`、`get_weather` 且开关打开。
+
+配好后在对话里问"今天天气怎么样？"，它会自动走"查位置 → 查天气"。若模型偶尔没调用工具，在提问里点名即可，如"用 weather-location-demo 的两个工具查今天上海的天气"。
 
 ## 5. 原理一句话
 
@@ -128,17 +169,26 @@ Claude Desktop / Cursor 等客户端配置好 MCP server 后，内置 Agent 会�
 ### 方式 B：自己写 Agent（`agent.py`）
 本项目自带一个工具调用循环示例，完全按你的需求实现：**用户问"今天天气怎么样" → 先调 `get_current_location` 获取位置 → 再用该位置调 `get_weather` → 自然语言回答**。
 
-先看完整流程（无需 API key，确定性演示）：
+先看完整流程（无需 API key，确定性演示；Windows 用 `.venv\Scripts\python.exe`，Linux 用 `.venv/bin/python`）：
 ```bash
-python agent.py --demo "今天天气怎么样？"
+# Windows:
+.venv\Scripts\python.exe agent.py --demo "今天天气怎么样？"
+# Linux / macOS / WSL:
+.venv/bin/python agent.py --demo "今天天气怎么样？"
 ```
 
 接真实 LLM（OpenAI 兼容接口，DeepSeek/OpenAI/Kimi/Qwen 均可）：
 ```bash
+# Linux/macOS/WSL：
 export LLM_API_KEY=sk-xxx
 export LLM_BASE_URL=https://api.deepseek.com/v1   # 可选，默认 DeepSeek
 export LLM_MODEL=deepseek-chat                    # 可选，默认 deepseek-chat
-python agent.py "今天天气怎么样？"
+.venv/bin/python agent.py "今天天气怎么样？"
+# Windows / PowerShell：
+#   $env:LLM_API_KEY="sk-xxx"
+#   $env:LLM_BASE_URL="https://api.deepseek.com/v1"
+#   $env:LLM_MODEL="deepseek-chat"
+#   .venv\Scripts\python.exe agent.py "今天天气怎么样？"
 ```
 
 `agent.py` 里值得读的关键代码：
@@ -150,6 +200,8 @@ python agent.py "今天天气怎么样？"
 
 ### 启动服务
 ```bash
+# Windows:  .venv\Scripts\python.exe deploy.py
+# Linux:    .venv/bin/python deploy.py
 python deploy.py                                   # 默认 0.0.0.0:8000，端点 /mcp
 python deploy.py --host 0.0.0.0 --port 9000 --path /weather  # 自定义
 ```
@@ -180,3 +232,5 @@ npx @modelcontextprotocol/inspector --transport http http://<服务器IP>:8000/m
 
 - IP 定位返回的是**出口 IP 所在城市**，可能不等于物理位置；在公司/代理环境下尤其如此。
 - 免费接口有限频，demo 场景够用；生产请申请正式 API key 或换商业服务。
+- 本 demo 用到的外部接口（ipwho.is / open-meteo / github.com 等）在国内网络下**可能间歇性超时**，重试一两次通常就好，不是代码问题。
+- **Windows 常见坑**：改完 `.vscode/mcp.json` 后必须 **Reload Window** 才生效；MCP 工具若没暴露给 Chat，先看 **MCP: List Servers** 状态 + Chat 输入框的 **Configure Tools**。
