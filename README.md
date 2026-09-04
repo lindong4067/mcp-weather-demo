@@ -18,7 +18,7 @@
 
 ```
 mcp_weather_demo/
-├── server.py          # MCP Server（FastMCP，暴露两个工具）
+├── server.py          # MCP Server（MCPServer，暴露两个工具）
 ├── agent.py           # MCP Agent（LLM 自动调用工具，支持 --demo 演示）
 ├── test_client.py     # 自带 stdio 测试客户端，一键验证链路
 ├── requirements.txt   # 依赖：mcp、httpx、openai
@@ -86,7 +86,7 @@ Settings → MCP → **Add new MCP server** → 选 `stdio`，command 填 `pytho
 
 ## 5. 原理一句话
 
-MCP 的架构是 **Server 暴露工具 ↔ Client 发起调用**，中间走 JSON-RPC。本 demo 用官方 Python SDK 的 `FastMCP` 高阶封装：`@mcp.tool()` 装饰一个普通函数，它就变成了可被 AI 调用的工具；`mcp.run()` 默认以 **stdio** 传输运行（进程间通信），也支持换成 HTTP/SSE 走远程部署。
+MCP 的架构是 **Server 暴露工具 ↔ Client 发起调用**，中间走 JSON-RPC。本 demo 基于 **MCP Python SDK v2**，用官方高阶封装 `MCPServer`（v2 中由 v1 的 `FastMCP` 更名而来）：`@mcp.tool()` 装饰一个普通函数，它就变成了可被 AI 调用的工具；`mcp.run()` 默认以 **stdio** 传输运行（进程间通信），也支持换成 HTTP/SSE 走远程部署。
 
 ## 6. 让 Agent 自动使用这些工具
 

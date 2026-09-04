@@ -12,10 +12,10 @@ MCP Demo Server —— 演示「查询当前位置 / 查询天气」
     npx @modelcontextprotocol/inspector python server.py   # 或通过 Inspector 图形化调试
 """
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 import httpx
 
-mcp = FastMCP("weather-location-demo")
+mcp = MCPServer("weather-location-demo")
 
 # ---------- 外部接口地址 ----------
 IP_GEO_URLS = [
@@ -153,7 +153,7 @@ def get_weather(city: str = "") -> str:
 
 
 def main() -> None:
-    # FastMCP 默认以 stdio 方式运行，等待客户端连接
+    # MCPServer 默认以 stdio 方式运行，等待客户端连接
     mcp.run()
 
 
