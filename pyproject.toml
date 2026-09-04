@@ -9,7 +9,7 @@ description = "MCP (Model Context Protocol) demo: a server exposing current-loca
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "<你的名字 / GitHub 用户名>" }]
+authors = [{ name = "lindong4067" }]
 keywords = ["mcp", "model-context-protocol", "weather", "llm", "agent"]
 dependencies = [
     "mcp>=1.2.0",
