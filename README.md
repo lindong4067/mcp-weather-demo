@@ -92,6 +92,22 @@ npx @modelcontextprotocol/inspector python server.py
 ### 方式 C：Cursor
 Settings → MCP → **Add new MCP server** → 选 `stdio`，command 填 `python /绝对路径/mcp_weather_demo/server.py`，启用后即可在对话里触发。
 
+### 方式 D：VSCode
+在项目根目录建 `.vscode/mcp.json`（该文件已在 `.gitignore` 中，属本地环境配置；用 Remote-WSL 打开项目时自动生效，server 在 WSL 内启动）：
+```json
+{
+  "servers": {
+    "weather-location-demo": {
+      "type": "stdio",
+      "command": "/绝对路径/mcp-weather-demo/.venv/bin/python",
+      "args": ["/绝对路径/mcp-weather-demo/server.py"],
+      "cwd": "/绝对路径/mcp-weather-demo"
+    }
+  }
+}
+```
+> 注意：`setup.sh` 会把依赖装进项目内的 `.venv`（Ubuntu 等 PEP 668 系统禁止系统级 pip），所以 `command` 必须指向 `.venv/bin/python`，而不是系统 `python`。配置后重启 VSCode，命令面板执行 **MCP: List Servers** 确认连接，再在对话里问"今天天气怎么样？"即可触发。
+
 ## 5. 原理一句话
 
 MCP 的架构是 **Server 暴露工具 ↔ Client 发起调用**，中间走 JSON-RPC。本 demo 基于 **MCP Python SDK v2**，用官方高阶封装 `MCPServer`（v2 中由 v1 的 `FastMCP` 更名而来）：`@mcp.tool()` 装饰一个普通函数，它就变成了可被 AI 调用的工具；`mcp.run()` 默认以 **stdio** 传输运行（进程间通信），也支持换成 HTTP/SSE 走远程部署。

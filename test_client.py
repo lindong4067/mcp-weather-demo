@@ -6,6 +6,7 @@ MCP 测试客户端 —— 通过 stdio 启动 server.py，列出工具并依次
 """
 
 import asyncio
+import sys
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -13,7 +14,8 @@ from mcp.client.stdio import stdio_client
 
 async def main() -> None:
     # 以子进程方式启动 MCP Server（stdio 传输）
-    server_params = StdioServerParameters(command="python", args=["server.py"])
+    # 用 sys.executable 拉起子进程：依赖装在哪个 Python（如 .venv）就用哪个，避免系统 Python 找不到 mcp
+    server_params = StdioServerParameters(command=sys.executable, args=["server.py"])
 
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
