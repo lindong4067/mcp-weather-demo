@@ -27,6 +27,7 @@ import argparse
 import asyncio
 import json
 import os
+import sys
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -196,7 +197,8 @@ async def run() -> None:
     parser.add_argument("--demo", action="store_true", help="无 API key 的确定性演示模式")
     args = parser.parse_args()
 
-    server_params = StdioServerParameters(command="python", args=["server.py"])
+    # 用 sys.executable 拉起子进程：依赖装在哪个 Python（如 .venv）就用哪个，避免系统 Python 找不到 mcp
+    server_params = StdioServerParameters(command=sys.executable, args=["server.py"])
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
