@@ -31,6 +31,10 @@ import sys
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from dotenv import load_dotenv
+
+# 自动加载项目根目录的 .env（存放 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL 等环境变量）
+load_dotenv()
 
 # 默认使用 DeepSeek（OpenAI 兼容接口），可通过环境变量换成其它厂商
 DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
