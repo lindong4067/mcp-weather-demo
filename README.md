@@ -38,6 +38,10 @@ mcp\_weather\_demo/
 
 ├── test\_client.py     # 自带 stdio 测试客户端，一键验证链路
 
+├── debug.py           # DEBUG 记录器（记录 Agent↔LLM / Agent↔MCP 全部交互，研究学习用）
+
+├── debug\_logs/        # DEBUG 模式输出目录（.jsonl 结构化 + .log 可读，git 已忽略）
+
 ├── setup.sh           # 一键恢复环境（Linux/macOS/WSL）
 
 ├── setup.ps1          # 一键恢复环境（Windows/PowerShell）
@@ -418,6 +422,44 @@ export LLM\_MODEL=deepseek-chat                    # 可选，默认 deepseek-ch
 * `to_openai_tool()`：把 MCP 工具定义转换成 LLM 认识的 function-calling schema
 
 * `run_agent()`：核心循环 —— 把工具喂给 LLM → LLM 返回 tool\_calls → 在 MCP 会话执行 → 结果回填 → 直到 LLM 给出最终回答
+
+## 6.5 DEBUG 模式（研究学习用）
+
+`agent.py` / `test_client.py` 都支持 `--debug`：**把 Agent 与 LLM、MCP 之间发生的每一次交互完整落盘**，用于研究 MCP 工作机理、调试 Agent 行为、学习函数调用链路。
+
+```text
+# 演示模式 + DEBUG（无需 API key，推荐先跑这个）
+.venv/bin/python agent.py --demo --debug "今天天气怎么样？"      # Linux
+.venv\Scripts\python.exe agent.py --demo --debug "今天天气怎么样？"  # Windows
+
+# 真实 LLM + DEBUG
+.venv/bin/python agent.py --debug "今天天气怎么样？"
+
+# 仅 MCP 链路 + DEBUG（不看 LLM，只看协议报文）
+.venv/bin/python test_client.py --debug
+
+# 环境变量方式：MCP_DEBUG=1 等价于 --debug
+```
+
+### 记录了哪些交互
+
+| 类别 | 方向 | 内容 |
+| --- | --- | --- |
+| `llm_request` | Agent → LLM | 每次请求的完整 payload：model / 全部 messages（system、user、assistant tool_calls、tool 结果）/ tools schema |
+| `llm_response` | LLM → Agent | 完整响应对象：id / model / finish_reason / message / tool_calls / usage token 数 |
+| `mcp_request` | Agent → MCP | initialize / tools/list / tools/call 的方法名与参数 |
+| `mcp_response` | MCP → Agent | 完整响应：content 文本、structuredContent、isError，及耗时 |
+| `rpc_message` | client→server / server→client | 传输层完整 JSON-RPC 协议消息（请求/响应/通知/错误），可学习协议线格式 |
+| `event` / `summary` | — | 生命周期事件（开始/结束/中止）与运行汇总 |
+
+### 输出
+
+默认写入项目根目录 `debug_logs/`（已被 .gitignore 忽略）：
+
+* `debug_<时间戳>.jsonl` —— 机器可读结构化日志，每行一个 JSON 对象，含序号 / 时间戳 / 耗时 / 类别 / 方向 / 完整 payload，可直接用脚本回放分析；
+* `debug_<时间戳>.log` —— 人类可读对齐日志，按时间线浏览学习。
+
+实现集中在 `debug.py`（`DebugRecorder` + 传输流包装），`agent.py` 通过 `--debug` / `--debug-dir` 接入，日志里**不会**出现 API key 等敏感信息。
 
 ## 7. 远程部署（streamable-http）
 

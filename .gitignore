@@ -30,3 +30,6 @@ ENV/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# DEBUG 日志（研究学习用）
+debug_logs/
