@@ -1,13 +1,16 @@
 # MCP Demo —— 当前位置 & 天气查询
 
-一个用 Python 写的 MCP（Model Context Protocol）完整示例，包含 **Server**（暴露工具）与 **Agent**（LLM 自动调用工具）两部分：
+一个用 Python 写的 MCP（Model Context Protocol）完整示例，包含 **Server**（暴露能力）与 **Agent**（LLM 自动调用工具）两部分。实现了 MCP 的三大原语：
 
-
+* **Tools（工具）**：LLM 自动决定调用、执行动作
+* **Resources（资源）**：客户端直接读取进上下文的数据（静态 + 模板）
+* **Prompts（提示词）**：客户端拉取渲染的提示词模板
 
 | 工具                     | 说明                                         |
 | ---------------------- | ------------------------------------------ |
 | `get_current_location` | 查询当前位置（城市 / 省份 / 国家 / 经纬度 / 时区），基于出口 IP 定位 |
 | `get_weather`          | 查询天气；可传城市名（如 "上海"），不传则用当前所在位置              |
+| `get_weather_forecast` | 查询未来多天天气预报（1-16 天）；出行规划等需要多天数据的场景使用        |
 
 所有数据源均为**免费、无需 API key** 的公开接口：
 
@@ -19,7 +22,7 @@
 
 * 天气：Open-Meteo Forecast API
 
-
+> 资源与提示词的完整清单见下文 **1.5 Resources 与 Prompts（扩展能力）**。
 
 ***
 
@@ -30,7 +33,7 @@
 ```
 mcp\_weather\_demo/
 
-├── server.py          # MCP Server（MCPServer，暴露两个工具）
+├── server.py          # MCP Server（MCPServer：3 个工具 + 5 个资源 + 3 个提示词）
 
 ├── agent.py           # MCP Agent（LLM 自动调用工具，支持 --demo 演示）
 
@@ -57,6 +60,36 @@ mcp\_weather\_demo/
 
 └── README.md
 ```
+
+## 1.5 Resources 与 Prompts（扩展能力）
+
+MCP 除了 Tools（动作）还有两个原语：**Resources**（数据）与 **Prompts**（提示词模板）。本 demo 在原有工具之上扩展实现了完整的三类能力，供研究学习。
+
+### Resources（资源：客户端读取数据，不经 LLM 决策）
+
+客户端通过 `resources/list`、`resources/read` 读取；分为**静态资源**（固定 URI）与**模板资源**（URI 含 `{参数}`，参数绑定到函数形参）。
+
+| URI | 类型 | 说明 | 应用场景 |
+| --- | --- | --- | --- |
+| `weather://cities` | 静态 | 内置常用城市列表（JSON，含经纬度/时区） | 用户说"查杭州天气"时，客户端先读列表即可拿到可用城市，无需 LLM 猜城市名 |
+| `weather://wmo-codes` | 静态 | WMO 天气代码→中文对照表（JSON） | 工具只返回 `weathercode=95`，LLM 可读取本表理解"95=雷暴" |
+| `weather://server-info` | 静态 | Server 能力、数据源与注意事项 | 客户端可嵌入系统上下文，让 LLM 知道数据从哪来 |
+| `weather://{city}/current` | 模板 | 指定城市当前天气 | 与 `get_weather` 工具对照学习：Resource=把数据"拉进上下文"，Tool=让模型"执行动作" |
+| `weather://{city}/forecast` | 模板 | 指定城市未来 7 天逐日预报 | 出行/规划场景直接读取多天数据 |
+
+### Prompts（提示词模板：服务器分发，客户端拉取）
+
+客户端通过 `prompts/list`、`prompts/get` 拉取。函数参数会成为 Prompt 的 `inputSchema`（参数型模板）。注意：**MCP 规范中 Prompt 消息只支持 `user` / `assistant` 两种角色（无 system）**，引导规则放在 user 消息里，由客户端作为对话起点注入。
+
+| 名称 | 参数 | 说明 | 应用场景 |
+| --- | --- | --- | --- |
+| `weather-assistant` | 无 | 天气问答引导规则 | 把 agent 内置引导词沉淀为服务器端提示词，演示"提示词由服务端分发" |
+| `travel-weather-plan` | `city`（必填）、`days`（可选默认 3） | 出行天气规划任务 | 参数型模板：要求 LLM 查未来 N 天预报并给穿搭/雨具/防晒建议 |
+| `weather-briefing` | `city`（可选，默认当前位置） | 结构化每日天气简报 | 可选参数默认值 + 结构化输出引导 |
+
+### 配套：`get_weather_forecast` 工具
+
+`travel-weather-plan` 需要"未来 N 天"真实数据，而原有两个工具只能查当前天气，因此新增了该工具（Open-Meteo daily 接口，1-16 天）。这也体现了 MCP 的组合关系：**Prompts 驱动 LLM 调用 Tools 获取数据，Resources 供客户端直接读取同一份数据**。
 
 ## 2. 安装依赖
 
@@ -121,30 +154,37 @@ cd mcp\_weather\_demo
 .venv/bin/python test\_client.py
 ```
 
-它会以子进程方式拉起 `server.py`，通过 stdio 完成初始化握手、列出工具并依次调用，输出类似：
+它会以子进程方式拉起 `server.py`，通过 stdio 完成初始化握手，并**依次验证三类能力**：
 
+1. **Tools**：列出并调用（`get_current_location` / `get_weather` / `get_weather_forecast`）
+2. **Resources**：列出静态资源与模板资源，读取全部 5 个资源
+3. **Prompts**：列出 3 个提示词，并用不同参数拉取渲染
 
+输出类似：
 
 ```
-\== Server 已注册的工具 ==
+== Server 已注册的工具 ==
+  - get_current_location: ...
+  - get_weather: ...
+  - get_weather_forecast: ...
 
-&#x20; \- get\_current\_location: ...
-
-&#x20; \- get\_weather: ...
-
-\== 调用 get\_current\_location ==
-
-当前定位：Beijing · Beijing · China
-
-经纬度：(39.904201, 116.4069126)
-
-时区：Asia/Shanghai
-
-\== 调用 get\_weather —— 传参：查上海天气 ==
-
+== 调用 get_weather —— 传参：查上海天气 ==
 上海（中国） 当前天气：基本晴
-
 温度：29.5°C（体感 32.3°C）...
+
+== Server 已注册的静态资源 ==
+  - weather://cities: ...
+  - weather://wmo-codes: ...
+  - weather://server-info: ...
+
+== Server 已注册的资源模板 ==
+  - weather://{city}/current: ...
+  - weather://{city}/forecast: ...
+
+== Server 已注册的提示词 ==
+  - weather-assistant(): ...
+  - travel-weather-plan(city, days?): ...
+  - weather-briefing(city?): ...
 ```
 
 ## 4. 用真实客户端接入（三种方式）
@@ -179,7 +219,7 @@ npx @modelcontextprotocol/inspector .venv\Scripts\python.exe server.py
 npx @modelcontextprotocol/inspector .venv/bin/python server.py
 ```
 
-浏览器打开 `http://localhost:6274`，点 **Connect** 后即可在 Tools 面板里看到并调用两个工具。
+浏览器打开 `http://localhost:6274`，点 **Connect** 后即可在 **Tools / Resources / Prompts** 三个面板里分别看到并操作全部能力。
 
 **关闭**：回到启动 Inspector 的终端，按 `Ctrl+C` 结束进程（直接关闭该终端窗口同样有效）。
 
@@ -311,7 +351,13 @@ Settings → MCP → **Add new MCP server** → 选 `stdio`，command 填 `.venv
 
 ## 5. 原理一句话
 
-MCP 的架构是 **Server 暴露工具 ↔ Client 发起调用**，中间走 JSON-RPC。本 demo 基于 **MCP Python SDK v2**，用官方高阶封装 `MCPServer`（v2 中由 v1 的 `FastMCP` 更名而来）：`@mcp.tool()` 装饰一个普通函数，它就变成了可被 AI 调用的工具；`mcp.run()` 默认以 **stdio** 传输运行（进程间通信），也支持换成 HTTP/SSE 走远程部署。
+MCP 的架构是 **Server 暴露能力 ↔ Client 发起调用**，中间走 JSON-RPC，能力分三类：
+
+* **Tools**：`@mcp.tool()` 装饰一个普通函数，它就变成可被 AI 自动调用的工具（`tools/list` + `tools/call`）
+* **Resources**：`@mcp.resource(uri)` 暴露数据，URI 含 `{参数}` 即为模板资源（`resources/list` + `resources/read`）
+* **Prompts**：`@mcp.prompt()` 定义提示词模板，函数参数自动成为 `inputSchema`（`prompts/list` + `prompts/get`）
+
+本 demo 基于 **MCP Python SDK v2**，用官方高阶封装 `MCPServer`（v2 中由 v1 的 `FastMCP` 更名而来）；`mcp.run()` 默认以 **stdio** 传输运行（进程间通信），也支持换成 HTTP/SSE 走远程部署。
 
 ## 6. 让 Agent 自动使用这些工具
 
@@ -415,13 +461,30 @@ export LLM\_MODEL=deepseek-chat                    # 可选，默认 deepseek-ch
 \#   .venv\Scripts\python.exe agent.py "今天天气怎么样？"
 ```
 
+### 方式 C：先拉取服务器端 Prompt 再对话（`--prompt`）
+
+MCP 的 **Prompts** 由服务器分发：Agent 先 `prompts/get` 拉取模板，再以渲染出的消息作为对话起点。这演示了"提示词模板可以随 server 走、集中维护"的完整链路。
+
+```
+# 拉取 weather-assistant 引导 + 追加用户提问（Linux；Windows 用 .venv\Scripts\python.exe）
+.venv/bin/python agent.py --demo --prompt weather-assistant "今天天气怎么样？"
+
+# 拉取 travel-weather-plan（参数型：city 必填、days 可选；注意参数值必须是字符串）
+.venv/bin/python agent.py --demo --prompt travel-weather-plan --prompt-args '{"city":"上海","days":"3"}'
+
+# 拉取 weather-briefing（可选参数 city，默认当前位置）
+.venv/bin/python agent.py --demo --prompt weather-briefing --prompt-args '{"city":"北京"}'
+```
+
+真实 LLM 模式同样支持 `--prompt`（去掉 `--demo` 即可）。
+
 `agent.py` 里值得读的关键代码：
-
-
 
 * `to_openai_tool()`：把 MCP 工具定义转换成 LLM 认识的 function-calling schema
 
 * `run_agent()`：核心循环 —— 把工具喂给 LLM → LLM 返回 tool\_calls → 在 MCP 会话执行 → 结果回填 → 直到 LLM 给出最终回答
+
+* `--prompt` 分支：`session.get_prompt()` 拉取模板 → 渲染消息作为 `initial_messages` → 若模板是"自包含任务"（内容含【...任务】标记）则不追加提问，否则把用户提问追加为最后一条 user 消息
 
 ## 6.5 DEBUG 模式（研究学习用）
 
@@ -509,12 +572,12 @@ npx @modelcontextprotocol/inspector --transport http http://<服务器IP>:8000/m
 
 ## 8. 扩展方向
 
+已实现：**Tools**（3 个）+ **Resources**（3 静态 + 2 模板）+ **Prompts**（3 个），见上文 1.5 节。
 
+后续可继续：
 
-* 加 **Resource**：暴露静态数据（如 "常用城市列表"）供客户端读取
-
-* 加 **Prompt**：定义提示词模板，让客户端按模板引导 AI
-
+* 加 **订阅推送**：`session.subscribe_resource(uri)` + `notifications/resources/list_changed`，让资源变化主动通知客户端
+* 加 **多轮输入（InputRequiredResult）**：Prompt/Resource 可返回"需要补充参数"的结果，与客户端多轮交互后再渲染
 * 换 **SSE 传输**：`mcp.run(transport='sse', ...)`（若需兼容老式 SSE 客户端）
 
 * 换成你自己的真实业务接口（数据库、内网 API），原理完全一致

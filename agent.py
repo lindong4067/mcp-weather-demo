@@ -9,6 +9,7 @@ MCP Agent —— 让 LLM 自动使用 MCP Server 暴露的工具。
   Agent 通过 MCP 客户端连接 Server → 把工具名/描述/参数 schema 喂给 LLM →
   LLM 认为需要时返回"函数调用请求" → Agent 在 MCP 会话里执行该工具 →
   把返回结果回填给 LLM → LLM 继续直到给出最终回答。
+
 用法：
   方式一：真实 LLM（需要 OpenAI 兼容的 API key，DeepSeek/OpenAI/Kimi/Qwen 均可）
     export LLM_API_KEY=sk-xxx
@@ -17,6 +18,13 @@ MCP Agent —— 让 LLM 自动使用 MCP Server 暴露的工具。
     python agent.py "今天天气怎么样？"
   方式二：--demo 确定性演示（无需 API key，演示"自动调工具"的完整链路）
     python agent.py --demo "今天天气怎么样？"
+  方式三：--prompt 先拉取服务器端 Prompt 模板再对话（演示"提示词由 Server 分发"）
+    # 拉取 weather-assistant 引导 + 追加用户提问
+    python agent.py --demo --prompt weather-assistant "今天天气怎么样？"
+    # 拉取 travel-weather-plan（参数型模板，city 必填、days 可选）
+    python agent.py --demo --prompt travel-weather-plan --prompt-args '{"city":"上海","days":"3"}'
+    # 拉取 weather-briefing（可选参数 city，默认当前位置）
+    python agent.py --demo --prompt weather-briefing --prompt-args '{"city":"北京"}'
   DEBUG 模式（研究学习用，记录 Agent 与 LLM / MCP 的全部交互细节）：
     python agent.py --demo --debug "今天天气怎么样？"
     python agent.py --debug "今天天气怎么样？"
@@ -26,6 +34,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import sys
 import time
 
@@ -43,7 +52,8 @@ SYSTEM_PROMPT = (
     "你是一个生活助手，可以调用工具获取实时信息。关于天气："
     "若用户没有指定城市，先调用 get_current_location 获取当前位置，"
     "再把该位置作为参数调用 get_weather 查询天气；"
-    "若用户指定了城市（如\"上海\"），直接调用 get_weather(city=城市名)。"
+    "若用户指定了城市（如\"上海\"），直接调用 get_weather(city=城市名)；"
+    "若用户需要未来多天天气预报，调用 get_weather_forecast(city, days)。"
     "不要编造数据，一切以工具返回结果为准，最后用自然语言回答用户。"
 )
 # ---------------- MCP 工具 -> OpenAI function calling schema ----------------
@@ -71,14 +81,20 @@ def assistant_message(msg) -> dict:
         ]
     return d
 # ---------------- 工具调用主循环 ----------------
-async def run_agent(session: ClientSession, client, model: str, query: str, recorder=None) -> None:
-    """MCP 工具调用主循环。recorder 为 DebugRecorder（未启用 DEBUG 时为空操作）。"""
+async def run_agent(session: ClientSession, client, model: str, query: str, recorder=None,
+                    initial_messages: list | None = None, prompt_name: str | None = None) -> None:
+    """MCP 工具调用主循环。recorder 为 DebugRecorder（未启用 DEBUG 时为空操作）。
+
+    initial_messages：若传入了从服务器拉取的 Prompt 渲染结果，则以其为对话起点
+    （--prompt 模式）；否则使用内置 SYSTEM_PROMPT + 用户提问。
+    """
     recorder = recorder or DebugRecorder(enabled=False)
     is_demo = isinstance(client, DemoClient)
     recorder.event("agent.start", {
         "query": query,
         "mode": "demo" if is_demo else "llm",
         "llm": model,
+        "prompt": prompt_name,
         "base_url": os.getenv("LLM_BASE_URL", DEFAULT_BASE_URL) if not is_demo else None,
     })
     # 1) 加载 MCP 工具 -> 喂给 LLM
@@ -92,13 +108,27 @@ async def run_agent(session: ClientSession, client, model: str, query: str, reco
     for t in openai_tools:
         print(f"  - {t['function']['name']}: {t['function']['description']}")
     print()
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": query},
-    ]
+
+    # 2) 组装初始对话上下文
+    if initial_messages:
+        messages = [dict(m) for m in initial_messages]
+        # 提示词模板若已是"自包含任务"（内容含【...任务】标记），不再追加用户提问；
+        # 否则视为"引导规则"，把用户提问追加为最后一条 user 消息。
+        last_user = next((m for m in reversed(messages) if m.get("role") == "user"), None)
+        is_self_contained = bool(
+            last_user and "【" in last_user.get("content", "") and "任务" in last_user.get("content", "")
+        )
+        if not is_self_contained:
+            messages.append({"role": "user", "content": query})
+    else:
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": query},
+        ]
+
     n_tool_calls = 0
     for _turn in range(12):  # 最多 12 轮工具调用，防止死循环
-        # 2) Agent -> LLM：发送完整上下文（system / user / assistant tool_calls / tool 结果）
+        # 3) Agent -> LLM：发送完整上下文（system / user / assistant tool_calls / tool 结果）
         recorder.llm_request(model, [dict(m) for m in messages], openai_tools)
         t0 = time.monotonic()
         try:
@@ -126,7 +156,7 @@ async def run_agent(session: ClientSession, client, model: str, query: str, reco
             except json.JSONDecodeError:
                 args = {}
             print(f"\n[Agent 调用工具] {name}({args})")
-            # 3) Agent -> MCP：调用工具；MCP -> Agent：返回结果
+            # 4) Agent -> MCP：调用工具；MCP -> Agent：返回结果
             recorder.mcp_request("tools/call", {"name": name, "arguments": args})
             t0 = time.monotonic()
             try:
@@ -145,7 +175,11 @@ async def run_agent(session: ClientSession, client, model: str, query: str, reco
     recorder.event("agent.done", {"reason": "max_turns", "turns": 12, "tool_calls": n_tool_calls})
     recorder.summary(turns=12, tool_calls=n_tool_calls)
 # ---------------- 无 API key 的确定性演示客户端 ----------------
-# 模拟 LLM 的"决策"：第 1 轮要定位，第 2 轮用定位结果查天气，第 3 轮给出最终回答。
+# 模拟 LLM 的"决策"（完全确定，基于当前上下文）：
+#   1) 天气已查 → 给出最终回答；
+#   2) 能从上下文解析出城市（提示词模板中已指定，或定位结果）→ 调用天气工具
+#      （提示词提到"预报/出行/未来"且服务器有 get_weather_forecast 时查预报，否则查当前天气）；
+#   3) 否则 → 先调用 get_current_location 定位。
 class _DemoFunction:
     def __init__(self, name: str, arguments: str):
         self.name, self.arguments = name, arguments
@@ -173,33 +207,71 @@ class _DemoChat:
         self.completions = _DemoCompletions(owner)
 class DemoClient:
     """确定性客户端：模拟 LLM 决策，演示完整的工具调用链（无需 API key）。"""
+
     def __init__(self):
         self.chat = _DemoChat(self)
-        self._turn = 0
+        self._loc_done = False
+        self._weather_done = False
+
     async def _decide(self, kwargs):
-        self._turn += 1
-        if self._turn == 1:
+        msgs = kwargs.get("messages", [])
+        tools = {t["function"]["name"] for t in kwargs.get("tools", [])}
+        user_msgs = [m.get("content") or "" for m in msgs if m.get("role") == "user"]
+        query_text = user_msgs[-1] if user_msgs else ""
+
+        # 1) 天气已查 → 最终回答
+        if self._weather_done:
             return _DemoResponse(_DemoMessage(
-                tool_calls=[_DemoToolCall("demo_1", "get_current_location", "{}")]
+                content="好的！我根据工具返回的真实数据整理好了回答，完整数据见上方工具返回结果。"
             ))
-        if self._turn == 2:
-            # 从上一步定位结果里解析出城市名，作为天气查询参数
-            city = "当前位置"
-            for m in kwargs.get("messages", []):
-                if m.get("role") == "tool" and "当前定位" in m.get("content", ""):
-                    city = m["content"].split("当前定位：")[1].split("·")[0].strip()
-                    break
+
+        # 2) 解析城市：优先定位结果，其次提示词模板/提问中显式给出的城市
+        city = None
+        for m in msgs:
+            if m.get("role") == "tool" and "当前定位" in m.get("content", ""):
+                city = m["content"].split("当前定位：")[1].split("·")[0].strip()
+                break
+        if not city:
+            m = re.search(
+                r"(?:去|为)\s*([\u4e00-\u9fffA-Za-z][\u4e00-\u9fffA-Za-z ]{0,9}?)\s*(?:出行|生成|预报|简报)",
+                query_text,
+            )
+            if m and m.group(1).strip() != "当前位置":
+                city = m.group(1).strip()
+
+        # 3) 无城市 → 先定位
+        if not city and not self._loc_done:
+            self._loc_done = True
             return _DemoResponse(_DemoMessage(
-                tool_calls=[_DemoToolCall("demo_2", "get_weather", json.dumps({"city": city}))]
+                tool_calls=[_DemoToolCall("demo_loc", "get_current_location", "{}")]
             ))
+
+        # 4) 有城市（或已定位）→ 查天气
+        self._weather_done = True
+        # 命中"未来/预报"关键词才查多天预报（出行模板含"未来 N 天/天气预报"）；
+        # 注意不能用"出行"作关键词——简报模板里的"出行/防晒建议"也会命中
+        need_forecast = (
+            any(k in query_text for k in ("未来", "预报"))
+            and "get_weather_forecast" in tools
+        )
+        if need_forecast:
+            name, args = "get_weather_forecast", {"city": city or "", "days": 3}
+        else:
+            name, args = "get_weather", {"city": city or ""}
         return _DemoResponse(_DemoMessage(
-            content="好的！我根据你的当前位置查到了当地天气，完整数据见上方工具返回结果。"
+            tool_calls=[_DemoToolCall("demo_weather", name, json.dumps(args, ensure_ascii=False))]
         ))
 # ---------------- 入口 ----------------
 async def run() -> None:
     parser = argparse.ArgumentParser(description="使用 MCP 工具的天气 Agent")
     parser.add_argument("query", nargs="?", default="今天天气怎么样？", help="用户提问")
     parser.add_argument("--demo", action="store_true", help="无 API key 的确定性演示模式")
+    parser.add_argument("--prompt", default=None,
+                        help="先拉取服务器端 Prompt 模板再对话（如 weather-assistant / "
+                             "travel-weather-plan / weather-briefing）")
+    parser.add_argument("--prompt-args", default="{}",
+                        help="传给 Prompt 模板的 JSON 参数（值必须是字符串），"
+                             "如 {\"city\":\"上海\",\"days\":\"3\"}")
     parser.add_argument("--debug", action="store_true",
                         help="DEBUG 模式：记录 Agent 与 LLM / MCP 的全部交互细节（研究学习用）")
     parser.add_argument("--debug-dir", default="debug_logs",
@@ -222,6 +294,29 @@ async def run() -> None:
                 init_result = await session.initialize()
                 recorder.mcp_response("initialize", init_result,
                                       dur_ms=(time.monotonic() - t0) * 1000)
+
+                # 可选：先拉取服务器端 Prompt 模板（演示"提示词由 Server 分发"）
+                initial_messages = None
+                if args.prompt:
+                    try:
+                        prompt_args = json.loads(args.prompt_args)
+                    except json.JSONDecodeError:
+                        print(f"警告：--prompt-args 不是合法 JSON（{args.prompt_args}），按空参数处理")
+                        prompt_args = {}
+                    print(f"== 拉取服务器端 Prompt：{args.prompt} {prompt_args} ==")
+                    recorder.mcp_request("prompts/get", {"name": args.prompt, "arguments": prompt_args})
+                    t0 = time.monotonic()
+                    prompt_result = await session.get_prompt(args.prompt, prompt_args)
+                    recorder.mcp_response("prompts/get", prompt_result,
+                                          dur_ms=(time.monotonic() - t0) * 1000)
+                    initial_messages = [
+                        {"role": m.role, "content": getattr(m.content, "text", None) or ""}
+                        for m in prompt_result.messages
+                    ]
+                    for m in initial_messages:
+                        print(f"  [{m['role']}] {m['content'][:100]}{'…' if len(m['content']) > 100 else ''}")
+                    print()
+
                 if args.demo:
                     client, model = DemoClient(), "demo"
                     print("== 演示模式：无 API key，用确定性逻辑模拟 LLM 决策 ==\n")
@@ -239,7 +334,8 @@ async def run() -> None:
                         base_url=os.getenv("LLM_BASE_URL", DEFAULT_BASE_URL),
                     )
                     model = os.getenv("LLM_MODEL", DEFAULT_MODEL)
-                await run_agent(session, client, model, args.query, recorder)
+                await run_agent(session, client, model, args.query, recorder,
+                                initial_messages=initial_messages, prompt_name=args.prompt)
     finally:
         if recorder.enabled:
             print(f"\n== DEBUG 记录完成 ==")
