@@ -205,7 +205,7 @@ cd mcp\_weather\_demo
 >
 >  确认 ≥ v22。
 
-在项目根目录启动（**务必用&#x20;**`.venv`**&#x20;里的 python 拉起 server**，系统 python 没有依赖）：
+在项目根目录启动（**务必用 **`.venv`** 里的 python 拉起 server**，系统 python 没有依赖）：
 
 
 
@@ -234,17 +234,17 @@ npx @modelcontextprotocol/inspector .venv/bin/python server.py
 ```
 {
 
-&#x20; "mcpServers": {
+ "mcpServers": {
 
-&#x20;   "weather-location-demo": {
+   "weather-location-demo": {
 
-&#x20;     "command": "/绝对路径/mcp\_weather\_demo/.venv/bin/python",
+     "command": "/绝对路径/mcp\_weather\_demo/.venv/bin/python",
 
-&#x20;     "args": \["/绝对路径/mcp\_weather\_demo/server.py"]
+     "args": \["/绝对路径/mcp\_weather\_demo/server.py"]
 
-&#x20;   }
+   }
 
-&#x20; }
+ }
 
 }
 ```
@@ -255,17 +255,17 @@ Windows 下把 `command` 换成 `.venv\Scripts\python.exe`（其余字段不变�
 ```
 {
 
-&#x20; "mcpServers": {
+ "mcpServers": {
 
-&#x20;   "weather-location-demo": {
+   "weather-location-demo": {
 
-&#x20;     "command": "C:\\\绝对路径\\\mcp-weather-demo\\\\.venv\\\Scripts\\\python.exe",
+     "command": "C:\\\绝对路径\\\mcp-weather-demo\\\\.venv\\\Scripts\\\python.exe",
 
-&#x20;     "args": \["C:\\\绝对路径\\\mcp-weather-demo\\\server.py"]
+     "args": \["C:\\\绝对路径\\\mcp-weather-demo\\\server.py"]
 
-&#x20;   }
+   }
 
-&#x20; }
+ }
 
 }
 ```
@@ -274,11 +274,11 @@ Windows 下把 `command` 换成 `.venv\Scripts\python.exe`（其余字段不变�
 >
 >  要指向
 >
-> **项目&#x20;**
+> **项目 **
 >
 > `.venv`
 >
-> **&#x20;里的 python**
+> ** 里的 python**
 >
 > （系统 python 没装依赖）：Windows 下是 
 >
@@ -304,7 +304,7 @@ Settings → MCP → **Add new MCP server** → 选 `stdio`，command 填 `.venv
 
 ### 方式 D：VSCode
 
-在项目根目录建 `.vscode/mcp.json`（该文件已在 `.gitignore` 中，属本地环境配置，不随仓库提交）。`command` 用**项目&#x20;**`.venv`**&#x20;里的 python** 拉起 server：
+在项目根目录建 `.vscode/mcp.json`（该文件已在 `.gitignore` 中，属本地环境配置，不随仓库提交）。`command` 用**项目 **`.venv`** 里的 python** 拉起 server：
 
 **Windows**（普通方式打开文件夹即可）：
 
@@ -313,21 +313,21 @@ Settings → MCP → **Add new MCP server** → 选 `stdio`，command 填 `.venv
 ```
 {
 
-&#x20; "servers": {
+ "servers": {
 
-&#x20;   "weather-location-demo": {
+   "weather-location-demo": {
 
-&#x20;     "type": "stdio",
+     "type": "stdio",
 
-&#x20;     "command": "C:\\\路径\\\mcp-weather-demo\\\\.venv\\\Scripts\\\python.exe",
+     "command": "C:\\\路径\\\mcp-weather-demo\\\\.venv\\\Scripts\\\python.exe",
 
-&#x20;     "args": \["C:\\\路径\\\mcp-weather-demo\\\server.py"],
+     "args": \["C:\\\路径\\\mcp-weather-demo\\\server.py"],
 
-&#x20;     "cwd": "C:\\\路径\\\mcp-weather-demo"
+     "cwd": "C:\\\路径\\\mcp-weather-demo"
 
-&#x20;   }
+   }
 
-&#x20; }
+ }
 
 }
 ```
@@ -339,21 +339,21 @@ Settings → MCP → **Add new MCP server** → 选 `stdio`，command 填 `.venv
 ```
 {
 
-&#x20; "servers": {
+ "servers": {
 
-&#x20;   "weather-location-demo": {
+   "weather-location-demo": {
 
-&#x20;     "type": "stdio",
+     "type": "stdio",
 
-&#x20;     "command": "/路径/mcp-weather-demo/.venv/bin/python",
+     "command": "/路径/mcp-weather-demo/.venv/bin/python",
 
-&#x20;     "args": \["/路径/mcp-weather-demo/server.py"],
+     "args": \["/路径/mcp-weather-demo/server.py"],
 
-&#x20;     "cwd": "/路径/mcp-weather-demo"
+     "cwd": "/路径/mcp-weather-demo"
 
-&#x20;   }
+   }
 
-&#x20; }
+ }
 
 }
 ```
@@ -389,7 +389,7 @@ MCP 的价值在于：**Agent（LLM）能 "看见" 你的工具并自动决定�
 ```
 用户提问 → LLM 读取工具名/描述/参数schema → LLM 决定调用哪个工具
 
-&#x20;      → MCP 客户端执行工具 → 结果回填给 LLM → LLM 继续 → 最终回答
+      → MCP 客户端执行工具 → 结果回填给 LLM → LLM 继续 → 最终回答
 ```
 
 ### 方式 A：现成客户端（零代码，推荐先试）
@@ -400,7 +400,7 @@ Claude Desktop / Cursor 等客户端配置好 MCP server 后，内置 Agent 会�
 
 ### 方式 B：自己写 Agent（`agent.py`）
 
-本项目自带一个工具调用循环示例，完全按你的需求实现：**用户问 "今天天气怎么样" → 先调&#x20;**`get_current_location`**&#x20;获取位置 → 再用该位置调&#x20;**`get_weather`**&#x20;→ 自然语言回答**。
+本项目自带一个工具调用循环示例，完全按你的需求实现：**用户问 "今天天气怎么样" → 先调 **`get_current_location`** 获取位置 → 再用该位置调 **`get_weather`** → 自然语言回答**。
 
 先看完整流程（无需 API key，确定性演示；Windows 用 `.venv\Scripts\python.exe`，Linux 用 `.venv/bin/python`）：
 
