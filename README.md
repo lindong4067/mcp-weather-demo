@@ -466,14 +466,18 @@ export LLM\_MODEL=deepseek-chat                    # 可选，默认 deepseek-ch
 MCP 的 **Prompts** 由服务器分发：Agent 先 `prompts/get` 拉取模板，再以渲染出的消息作为对话起点。这演示了"提示词模板可以随 server 走、集中维护"的完整链路。
 
 ```
-# 拉取 weather-assistant 引导 + 追加用户提问（Linux；Windows 用 .venv\Scripts\python.exe）
-.venv/bin/python agent.py --demo --prompt weather-assistant "今天天气怎么样？"
+# 拉取 weather-assistant 引导 + 追加用户提问
+.venv/bin/python agent.py --demo --prompt weather-assistant "今天天气怎么样？"          # Linux
+.venv\Scripts\python.exe agent.py --demo --prompt weather-assistant "今天天气怎么样？"  # Windows
 
-# 拉取 travel-weather-plan（参数型：city 必填、days 可选；注意参数值必须是字符串）
-.venv/bin/python agent.py --demo --prompt travel-weather-plan --prompt-args '{"city":"上海","days":"3"}'
+# 拉取 travel-weather-plan（参数型：city 必填、days 可选；参数值必须是字符串）
+# Windows 注意：PowerShell 5.1 传 JSON 给原生程序会剥掉双引号，需用 \" 转义
+.venv/bin/python agent.py --demo --prompt travel-weather-plan --prompt-args '{"city":"上海","days":"3"}'                # Linux
+.venv\Scripts\python.exe agent.py --demo --prompt travel-weather-plan --prompt-args '{\"city\":\"上海\",\"days\":\"3\"}'  # Windows
 
 # 拉取 weather-briefing（可选参数 city，默认当前位置）
-.venv/bin/python agent.py --demo --prompt weather-briefing --prompt-args '{"city":"北京"}'
+.venv/bin/python agent.py --demo --prompt weather-briefing --prompt-args '{"city":"北京"}'            # Linux
+.venv\Scripts\python.exe agent.py --demo --prompt weather-briefing --prompt-args '{\"city\":\"北京\"}'  # Windows
 ```
 
 真实 LLM 模式同样支持 `--prompt`（去掉 `--demo` 即可）。
