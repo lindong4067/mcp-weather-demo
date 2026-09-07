@@ -249,6 +249,27 @@ npx @modelcontextprotocol/inspector .venv/bin/python server.py
 }
 ```
 
+
+Windows 下把 `command` 换成 `.venv\Scripts\python.exe`（其余字段不变）：
+
+```
+{
+
+&#x20; "mcpServers": {
+
+&#x20;   "weather-location-demo": {
+
+&#x20;     "command": "C:\\\绝对路径\\\mcp-weather-demo\\\\.venv\\\Scripts\\\python.exe",
+
+&#x20;     "args": \["C:\\\绝对路径\\\mcp-weather-demo\\\server.py"]
+
+&#x20;   }
+
+&#x20; }
+
+}
+```
+
 > `command`
 >
 >  要指向
@@ -500,10 +521,12 @@ MCP 的 **Prompts** 由服务器分发：Agent 先 `prompts/get` 拉取模板，
 .venv\Scripts\python.exe agent.py --demo --debug "今天天气怎么样？"  # Windows
 
 # 真实 LLM + DEBUG
-.venv/bin/python agent.py --debug "今天天气怎么样？"
+.venv/bin/python agent.py --debug "今天天气怎么样？"              # Linux
+.venv\Scripts\python.exe agent.py --debug "今天天气怎么样？"      # Windows
 
 # 仅 MCP 链路 + DEBUG（不看 LLM，只看协议报文）
-.venv/bin/python test_client.py --debug
+.venv/bin/python test_client.py --debug                            # Linux
+.venv\Scripts\python.exe test_client.py --debug                    # Windows
 
 # 环境变量方式：MCP_DEBUG=1 等价于 --debug
 ```

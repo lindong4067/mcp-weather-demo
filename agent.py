@@ -12,19 +12,28 @@ MCP Agent —— 让 LLM 自动使用 MCP Server 暴露的工具。
 
 用法：
   方式一：真实 LLM（需要 OpenAI 兼容的 API key，DeepSeek/OpenAI/Kimi/Qwen 均可）
+    # Linux / macOS：
     export LLM_API_KEY=sk-xxx
     export LLM_BASE_URL=https://api.deepseek.com/v1   # 可选，默认 DeepSeek
     export LLM_MODEL=deepseek-chat                    # 可选，默认 deepseek-chat
     python agent.py "今天天气怎么样？"
+    # Windows PowerShell：
+    #   $env:LLM_API_KEY="sk-xxx"
+    #   $env:LLM_BASE_URL="https://api.deepseek.com/v1"
+    #   $env:LLM_MODEL="deepseek-chat"
+    #   python agent.py "今天天气怎么样？"
   方式二：--demo 确定性演示（无需 API key，演示"自动调工具"的完整链路）
     python agent.py --demo "今天天气怎么样？"
   方式三：--prompt 先拉取服务器端 Prompt 模板再对话（演示"提示词由 Server 分发"）
     # 拉取 weather-assistant 引导 + 追加用户提问
     python agent.py --demo --prompt weather-assistant "今天天气怎么样？"
     # 拉取 travel-weather-plan（参数型模板，city 必填、days 可选）
-    python agent.py --demo --prompt travel-weather-plan --prompt-args '{"city":"上海","days":"3"}'
+    # 注意：Windows PowerShell 传 JSON 给原生程序会剥掉双引号，需用 \" 转义（见下方两个变体）
+    python agent.py --demo --prompt travel-weather-plan --prompt-args '{"city":"上海","days":"3"}'          # Linux/macOS
+    python agent.py --demo --prompt travel-weather-plan --prompt-args '{\"city\":\"上海\",\"days\":\"3\"}'  # Windows PowerShell
     # 拉取 weather-briefing（可选参数 city，默认当前位置）
-    python agent.py --demo --prompt weather-briefing --prompt-args '{"city":"北京"}'
+    python agent.py --demo --prompt weather-briefing --prompt-args '{"city":"北京"}'        # Linux/macOS
+    python agent.py --demo --prompt weather-briefing --prompt-args '{\"city\":\"北京\"}'    # Windows PowerShell
   DEBUG 模式（研究学习用，记录 Agent 与 LLM / MCP 的全部交互细节）：
     python agent.py --demo --debug "今天天气怎么样？"
     python agent.py --debug "今天天气怎么样？"
